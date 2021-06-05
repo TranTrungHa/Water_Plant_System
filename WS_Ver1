@@ -1,0 +1,37 @@
+#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+char auth[] = "qR9OKYZvC4ULbI4fNTxvkxCdvYlUl4_S";
+char ssid[] = "ASUS_B0_2G";
+char pass[] = "a142536A";
+
+int sense_Pin = 0; // sensor input at Analog pin A0
+const int relay = 5;
+int value = 0;
+
+BlynkTimer timer;
+void myTimerEvent()
+{
+  value= analogRead(sense_Pin);
+  value= value/10;
+  Blynk.virtualWrite(V5, value);
+}
+
+void setup() {
+   Serial.begin(115200);
+   Blynk.begin(auth, ssid, pass);
+   timer.setInterval(10000L, myTimerEvent);
+   pinMode(relay, OUTPUT);
+   delay(2000);
+}
+void loop() {
+   Blynk.run();
+   timer.run();
+   Serial.println(value);
+        if(value>90)
+        {
+            digitalWrite(relay, HIGH);
+            delay(6000);
+            digitalWrite(relay, LOW);
+        }
+}
