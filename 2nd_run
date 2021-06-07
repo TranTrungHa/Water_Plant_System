@@ -69,6 +69,8 @@ void setup() {
    WiFi.begin(ssid, pass);
    while ( WiFi.status() != WL_CONNECTED ) {
     delay ( 500 );}
+   WiFi.setAutoReconnect(true);
+   WiFi.persistent(true);
    Blynk.begin(auth, ssid, pass);
    timer.setInterval(10000L, myTimerEvent);
    pinMode(relay, OUTPUT);
