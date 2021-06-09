@@ -1,0 +1,112 @@
+#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
+char auth[] = "qR9OKYZvC4ULbI4fNTxvkxCdvYlUl4_S"; //token
+char* ssid[] = {"ASUS_B0_2G","Tran dinh anh 2.4Ghz"}; //Wifi name
+char* pass[] = {"a142536A","1122336688"}; //Pass Wifi
+const int relay = 5; // Relay output
+int value = 0;
+int Count = 0;
+String tuoicay = "";
+
+WiFiUDP UDP;
+NTPClient timeClient(UDP, "pool.ntp.org", 25200);
+BlynkTimer timer;
+
+
+void MultyWiFiBlynkBegin() {
+  int ssid_count=0;
+  int ssid_mas_size = sizeof(ssid) / sizeof(ssid[0]);
+  do {
+    Serial.println("Trying to connect to wi-fi " + String(ssid[ssid_count]));
+    WiFi.begin(ssid[ssid_count], pass[ssid_count]);    
+    int WiFi_timeout_count=0;
+    while (WiFi.status() != WL_CONNECTED && WiFi_timeout_count<50) { //waiting 10 sec
+      delay(200);
+      Serial.print(".");
+      ++WiFi_timeout_count;
+      WiFi.setAutoReconnect(true);
+      WiFi.persistent(true);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Connected to WiFi! Now I will check the connection to the Blynk server");
+      Blynk.config(auth);
+      Blynk.connect(5000); //waiting 5 sec
+    }
+    ++ssid_count; 
+  }
+  while (!Blynk.connected() && ssid_count<ssid_mas_size);
+  if (!Blynk.connected() && ssid_count==ssid_mas_size) {
+    Serial.println("I could not connect to blynk =( Ignore and move on. but still I will try to connect to wi-fi " + String(ssid[ssid_count-1]));
+  }
+}
+
+void Openrelay()
+{
+  int average = 0;
+  for (int i=0; i < 10; i++) {
+    average = average + analogRead(A0);
+    delay(500);
+  }
+  value = round(average/100);
+  if(value>1000) 
+  {
+    digitalWrite(relay, LOW);
+    delay(6000);
+    digitalWrite(relay, HIGH);
+    Count++;
+    tuoicay = String(Count) + " vua tuoi auto";
+  } 
+  else 
+  { tuoicay = String(Count)+ " khong tuoi";}
+}
+
+void myTimerEvent()
+{
+  int average = 0;
+  for (int i=0; i < 10; i++) {
+    average = average + analogRead(A0);
+    delay(500);
+  }
+  value = round(average/100);
+  String ketqua = String(value) + " time " + timeClient.getFormattedTime();
+  Blynk.virtualWrite(V5, ketqua);
+  Blynk.virtualWrite(V11, String(Count));
+}
+
+BLYNK_WRITE(V1)
+{
+  int pinValue = param.asInt();
+  if (pinValue == 1) {
+      digitalWrite(relay, LOW);
+      delay(6000);
+      digitalWrite(relay, HIGH);
+      Count++; 
+      tuoicay = String(Count) + "chu dong vua tuoi";
+      Blynk.virtualWrite(V11, tuoicay);
+      } else { ;}
+}
+
+void setup() {
+   digitalWrite(relay, HIGH);
+   Serial.begin(115200);
+   timeClient.begin();
+   MultyWiFiBlynkBegin();
+   timer.setInterval(10000L, myTimerEvent);
+   pinMode(relay, OUTPUT);
+   ESP.deepSleep(20e6);
+}
+
+void loop() {
+  Openrelay();
+  timeClient.update();
+  String formattedTime = timeClient.getFormattedTime();
+  Blynk.run();
+  timer.run();
+  Serial.println("độ ẩm " + String(value));
+  Serial.println(String(tuoicay));
+  delay(5000);
+}
