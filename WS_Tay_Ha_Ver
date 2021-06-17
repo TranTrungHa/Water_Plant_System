@@ -118,5 +118,5 @@ void loop() {
   Serial.println(String(tuoicay));
   state.saveToRTC();
   delay(1000);
-  ESP.deepSleep(30e6, WAKE_RF_DISABLED );
+  ESP.deepSleep(12e8, WAKE_RF_DISABLED );
 }
