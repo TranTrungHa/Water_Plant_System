@@ -1,0 +1,172 @@
+#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <HTTPSRedirect.h>
+#include <DebugMacros.h>
+
+char auth[] = "qR9OKYZvC4ULbI4fNTxvkxCdvYlUl4_S"; //token
+char* ssid[] = {"Bao Trung","ASUS_B0_2G"}; //Wifi name
+char* pass[] = {"baotrung8692","a142536A"}; //Pass Wifi
+String Time = "";
+int Value = 0;
+const char* host = "script.google.com";
+const char* GScriptId = "AKfycbybWcSxCp2OYM0uWnhNr0hAQ04khWmy4l7Qn70IBRQmger7J2Q2g7BJGoNjd0g5UkTnhw"; 
+const int httpsPort = 443; 
+const char* fingerprint = ""; 
+String url2 = String("/macros/s/") + GScriptId + "/exec?cal";
+String payload_base =  "{\"command\": \"appendRow\",\"sheet_name\": \"Data1\", \"values\": "; 
+String payload = "";
+const int relay = 5; 
+int Timetuoi = 17000;
+String tuoicay = "";
+
+                       
+HTTPSRedirect* client = nullptr;                  
+WiFiUDP UDP;
+NTPClient timeClient(UDP, "pool.ntp.org", 25200);
+BlynkTimer timer;
+
+void MultyWiFiBlynkBegin() {
+  int ssid_count=0;
+  int ssid_mas_size = sizeof(ssid) / sizeof(ssid[0]);
+  do {
+    Serial.println("Trying to connect to wi-fi " + String(ssid[ssid_count]));
+    WiFi.begin(ssid[ssid_count], pass[ssid_count]);    
+    int WiFi_timeout_count=0;
+    while (WiFi.status() != WL_CONNECTED && WiFi_timeout_count<20) {
+      delay(1000);
+      Serial.print(".");
+      ++WiFi_timeout_count;
+      WiFi.setAutoReconnect(true);
+      WiFi.persistent(true);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Connected to WiFi! Now I will check the connection to the Blynk server");
+      Blynk.config(auth);
+      Blynk.connect(5000); //waiting 5 sec
+    }
+    ++ssid_count; 
+  }
+  while (!Blynk.connected() && ssid_count<ssid_mas_size);
+  if (!Blynk.connected() && ssid_count==ssid_mas_size) {
+    Serial.println("0 ket noi duoc toi blynk . tiep tuc ket noi toi wi-fi " + String(ssid[ssid_count-1]));
+  }
+}
+
+void myTimerEvent()
+{
+  int value = 0;
+  for (int i=0; i < 10; i++) {
+    value = value + analogRead(A0);
+    delay(500);
+  }
+  Value = int(round(value/100));
+  Time = String(timeClient.getEpochTime());
+  int Hour = int(timeClient.getHours());
+  int Min = int(timeClient.getMinutes());
+  delay(1000);
+  if((Hour == 7 && Value > 46) || (Hour == 17 && Value > 46)  || (Hour == 22 && Value > 46) ) 
+  {
+    digitalWrite(relay, LOW);
+    delay(Timetuoi);
+    digitalWrite(relay, HIGH);
+    tuoicay = " vua tuoi auto";
+  }
+  else 
+  { tuoicay = " khong tuoi";}
+  Blynk.virtualWrite(V5, Value + " " + Time);
+  Blynk.virtualWrite(V11, tuoicay);
+}
+
+BLYNK_WRITE(V1)
+{
+  int pinValue = param.asInt();
+  if (pinValue == 1) {
+      digitalWrite(relay, LOW);
+      delay(Timetuoi);
+      digitalWrite(relay, HIGH);
+      tuoicay = "chu dong vua tuoi";
+      Blynk.virtualWrite(V11, tuoicay);
+      } else { ;}
+}
+
+void setup() {
+   digitalWrite(relay, HIGH);
+   pinMode(relay, OUTPUT);
+   WiFi.mode(WIFI_OFF);
+   WiFi.forceSleepBegin();
+   delay(1);
+   Serial.begin(115200);
+   WiFi.forceSleepWake();
+   delay(1);
+   timeClient.begin();
+   MultyWiFiBlynkBegin();
+   timer.setInterval(5000L, myTimerEvent);
+   client = new HTTPSRedirect(httpsPort);
+   client->setInsecure();
+   client->setPrintResponseBody(true);
+   client->setContentTypeHeader("application/json");
+   Serial.print("Connecting to ");
+   Serial.println(host);
+   delay(1000);
+   bool flag = false;
+   for (int i=0; i<5; i++){ 
+     int retval = client->connect(host, httpsPort);
+    if (retval == 1){
+      flag = true;
+      Serial.println("Connected");
+      break;
+    }
+    else
+      Serial.println("Connection to google script failed. Retrying...");
+      delay(1000);
+  }
+  if (!flag){
+     Serial.print("Could not connect to server: ");
+     Serial.println(host);
+     return;
+   }
+   delay(2000);
+  delete client;    // delete HTTPSRedirect object
+  client = nullptr; // delete HTTPSRedirect object
+}
+
+void loop() {
+timeClient.update();
+Blynk.run();
+timer.run();
+myTimerEvent();
+Serial.println(Value);
+static bool flag = false;
+if (!flag){
+    client = new HTTPSRedirect(httpsPort);
+    client->setInsecure();
+    flag = true;
+    client->setPrintResponseBody(true);
+    client->setContentTypeHeader("application/json");
+  }
+  if (client != nullptr){
+    if (!client->connected()){
+      client->connect(host, httpsPort);
+    }
+  }
+  else{
+    Serial.println("Error creating client object!");
+  }
+payload = payload_base + "\"" + Time + "," + Value + "," + tuoicay +  "\"}";
+
+Serial.println("Publishing data...");
+Serial.println(payload);
+
+if(client->POST(url2, host, payload)){ 
+    // do stuff here if publish successful
+}
+else{
+  // do stuff here if publish was not successful
+}
+  delay(2000);
+  ESP.deepSleep(150e7, WAKE_RF_DISABLED );
+  delay(100);
+}
