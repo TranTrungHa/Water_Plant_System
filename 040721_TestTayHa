@@ -88,7 +88,7 @@ void myTimerEvent()
     sysmes = 2;
   }
   else 
-  { sysmes = 0;}
+  { ;}
   if (sysmes == 2) {tuoicay = "Nodemcu tuoi";} else if (sysmes == 1) {tuoicay = "blynk tuoi";} else {tuoicay = "khong tuoi";}
   String ketqua = "Humd: " + String(Value) + "- H: " + String(Hour) + "- M: " + String(Min);
   Blynk.virtualWrite(V5, ketqua);
