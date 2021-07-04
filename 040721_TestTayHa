@@ -1,0 +1,190 @@
+#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <HTTPSRedirect.h>
+#include <DebugMacros.h>
+
+// 1. Khai bien
+// 1 time Var
+char auth[] = "LKlOARfIpXp1wHzRt39Y36E5YUEsiKpQ"; //token
+char* ssid[] = {"Tran dinh anh 2.4G","Tran dinh anh 2.4G"}; //Wifi name
+char* pass[] = {"1122336688","1122336688"}; //Pass Wifi
+const char* host = "script.google.com"; //trang thuc hien script
+const char* GScriptId = "AKfycbybWcSxCp2OYM0uWnhNr0hAQ04khWmy4l7Qn70IBRQmger7J2Q2g7BJGoNjd0g5UkTnhw"; // ID of scipt
+const int httpsPort = 443; // port google
+const char* fingerprint = "";  // ???
+String url2 = String("/macros/s/") + GScriptId + "/exec?cal"; // script call macros
+String payload_base =  "{\"command\": \"appendRow\",\"sheet_name\": \"Data2\", \"values\": "; //cau truc link gui lenh len googleS
+// Changed variable
+String payload = "";
+const int relay = 5; //chan relay
+int Timetuoi = 15000; // thoi gian tuoi
+String tuoicay = "";
+String Time = "";
+int Value = 0;
+int sysmes = 0;
+
+//2. goi cac thu vien duoi ten
+HTTPSRedirect* client = nullptr;                  
+WiFiUDP UDP;
+NTPClient timeClient(UDP, "pool.ntp.org", 25200); //UDP, trang web lay gio, mui gio
+BlynkTimer timer;
+
+//3. Ham ket noi multi wifi va blynk
+void MultyWiFiBlynkBegin() {
+  int ssid_count=0;
+  int ssid_mas_size = sizeof(ssid) / sizeof(ssid[0]);
+  do {
+    Serial.println("connecting to wi-fi " + String(ssid[ssid_count]));
+    WiFi.begin(ssid[ssid_count], pass[ssid_count]);    
+    int WiFi_timeout_count=0;
+    while (WiFi.status() != WL_CONNECTED && WiFi_timeout_count<20) {
+      delay(1000);
+      Serial.print("... ");
+      ++WiFi_timeout_count;
+      WiFi.setAutoReconnect(true);
+      WiFi.persistent(true);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Connected to WiFi! checking connect to Blynk");
+      Blynk.config(auth);
+      Blynk.connect(5000); //waiting 5 sec
+    }
+    ++ssid_count; 
+  }
+  while (!Blynk.connected() && ssid_count<ssid_mas_size);
+  if (!Blynk.connected() && ssid_count==ssid_mas_size) {
+    Serial.println("can't connect to blynk . connecting to wi-fi " + String(ssid[ssid_count-1]));
+  }
+}
+// dong bo gia trị nut nhan tren blynk voi mach dien
+BLYNK_CONNECTED() {
+  Blynk.syncAll();
+}
+
+//4. Ham tu dong tuoi theo thoi gian va tra ket qua len google
+void myTimerEvent()
+{
+  // doc gia tri 10 lan va lay trung binh de loc nhieu
+  int value = 0;
+  for (int i=0; i < 10; i++) {
+    value = value + analogRead(A0);
+    delay(500);
+  }
+  Value = int(round(value/100));
+  // Lay thoi gian, gio, phut tu web
+  Time = String(timeClient.getEpochTime());
+  int Hour = int(timeClient.getHours());
+  int Min = int(timeClient.getMinutes());
+  delay(1000);
+  // Neu hien tai la 7 gio,17 gio hoac 22 gio cong voi do kho tren 70, tu dong bat bom tuoi nuoc
+  if((Hour == 7 && Value > 70) || (Hour == 17 && Value > 70)  || (Hour == 22 && Value > 70)) 
+  {
+    digitalWrite(relay, LOW);
+    delay(Timetuoi);
+    digitalWrite(relay, HIGH);
+    sysmes = 2;
+  }
+  else 
+  { sysmes = 0;}
+  if (sysmes == 2) {tuoicay = "Nodemcu tuoi";} else if (sysmes == 1) {tuoicay = "blynk tuoi";} else {tuoicay = "khong tuoi";}
+  String ketqua = "Humd: " + String(Value) + "- H: " + String(Hour) + "- M: " + String(Min);
+  Blynk.virtualWrite(V5, ketqua);
+  Blynk.virtualWrite(V11, tuoicay);
+}
+//5. Doc gia tri tren nut bam, neu la 1 thi tuoi, ko thi ko tuoi
+BLYNK_WRITE(V1)
+{
+  int pinValue = param.asInt();
+  Serial.println(pinValue);
+  if (pinValue == 1) {
+      digitalWrite(relay, LOW);
+      delay(Timetuoi);
+      digitalWrite(relay, HIGH);
+      sysmes = 1;
+      } else { sysmes = 0;}
+}
+// setup co ban
+void setup() {
+   digitalWrite(relay, HIGH); // role bat khi dien ap Low, nen dạt High de role ko chay
+   pinMode(relay, OUTPUT); 
+   WiFi.mode(WIFI_OFF); // tat wifi
+   WiFi.forceSleepBegin(); //tat wifi
+   delay(1);
+   Serial.begin(115200);
+   WiFi.forceSleepWake(); // bat wifi
+   delay(1);
+   timeClient.begin(); //lay gio
+   MultyWiFiBlynkBegin(); //ket noi wifi va blynk
+   timer.setInterval(10000L, myTimerEvent); // dat thoi gian cho ham tu dong tuoi
+   client = new HTTPSRedirect(httpsPort); //mo ket noi http
+   client->setInsecure();
+   client->setPrintResponseBody(true);
+   client->setContentTypeHeader("application/json");
+   Serial.print("Connecting to ");
+   Serial.println(host);
+   delay(1000);
+   // ket noi toi trang scripts
+   bool flag = false;
+   for (int i=0; i<5; i++){ 
+     int retval = client->connect(host, httpsPort);
+    if (retval == 1){
+      flag = true;
+      Serial.println("Connected");
+      break;
+    }
+    else
+      Serial.println("Connection to google script failed. Retrying...");
+      delay(1000);
+  }
+  if (!flag){
+     Serial.print("Could not connect to server: ");
+     Serial.println(host);
+     return;
+   }
+   delay(2000);
+  delete client;    // xoa HTTPSRedirect
+  client = nullptr; // xoa HTTPSRedirect
+}
+
+void loop() {
+timeClient.update(); //update lai time
+Blynk.run(); 
+timer.run();
+myTimerEvent(); //goi tuoi cay tu dong
+Serial.println(Value);
+// ket noi toi googleS
+static bool flag = false;
+if (!flag){
+    client = new HTTPSRedirect(httpsPort);
+    client->setInsecure();
+    flag = true;
+    client->setPrintResponseBody(true);
+    client->setContentTypeHeader("application/json");
+  }
+  if (client != nullptr){
+    if (!client->connected()){
+      client->connect(host, httpsPort);
+    }
+  }
+  else{
+    Serial.println("Error creating client object!");
+  }
+  
+payload = payload_base + "\"" + Time + "," + Value + "," + tuoicay +  "\"}"; // cau truc du lieu gui lên googleS (phan tach dau phay)
+
+Serial.println("Publishing data...");
+Serial.println(payload);
+
+if(client->POST(url2, host, payload)){ 
+    // do stuff here if publish successful
+}
+else{
+  // do stuff here if publish was not successful
+}
+  delay(2000);
+  ESP.deepSleep(150e7, WAKE_RF_DISABLED ); // vao trang thai ngu sau
+  delay(100);
+}
