@@ -7,8 +7,8 @@
 #include <DebugMacros.h>
 
 char auth[] = "qR9OKYZvC4ULbI4fNTxvkxCdvYlUl4_S"; //token
-char* ssid[] = {"Bao Trung","ASUS_B0_2G"}; //Wifi name
-char* pass[] = {"baotrung8692","a142536A"}; //Pass Wifi
+char* ssid[] = {"",""}; //Wifi name
+char* pass[] = {"",""}; //Pass Wifi
 String Time = "";
 int Value = 0;
 const char* host = "script.google.com";
