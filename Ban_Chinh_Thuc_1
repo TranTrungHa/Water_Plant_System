@@ -9,8 +9,8 @@
 // 1. Khai bien
 // 1 time Var
 char auth[] = "LKlOARfIpXp1wHzRt39Y36E5YUEsiKpQ"; //token
-char* ssid[] = {"ASUS_B0_2G","Bao Trung","ASUS_B0_2G"}; //Wifi name
-char* pass[] = {"a142536A","baotrung8692","a142536A"}; //Pass Wifi
+char* ssid[] = {"","",""}; //Wifi name
+char* pass[] = {"","",""}; //Pass Wifi
 const char* host = "script.google.com"; //trang thu hien script
 const char* GScriptId = "AKfycbybWcSxCp2OYM0uWnhNr0hAQ04khWmy4l7Qn70IBRQmger7J2Q2g7BJGoNjd0g5UkTnhw"; // ID of scipt
 const int httpsPort = 443; // port google
